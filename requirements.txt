@@ -1,0 +1,11 @@
+torch
+nibabel
+pyvista
+vtk 
+scikit-image
+streamlit
+stpyvista
+scipy
+matplotlib
+pandas
+xmltodict
