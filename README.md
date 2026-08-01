@@ -31,6 +31,7 @@ This pipeline automates the measurement of the **Hip-Knee-Ankle (HKA)** angle fr
         │
         ▼
 [Stage 5] Interactive Planning Dashboard (Streamlit + stpyvista)
+```
 
 ---
 
@@ -61,7 +62,7 @@ left limb meshes:
 * **Femoral head sphere-fitting error:** 0.63 mm (target: <3mm)
 
 #### 3D Mechanical Axes Reconstruction
-![All 4 Landmarks and Mechanical Axes](./fma_tma.png)
+![All 4 Landmarks and Mechanical Axes](./assets/fma_tma.png)
 
 * **Femoral Mechanical Axis (FMA - Red Line):** Line vector connecting `C_hip` to `C_knee_f`.
 * **Tibial Mechanical Axis (TMA - Blue Line):** Line vector connecting `C_ankle` to `C_knee_t`.
