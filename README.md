@@ -35,7 +35,7 @@ This pipeline automates the measurement of the **Hip-Knee-Ankle (HKA)** angle fr
 
 ---
 
-## 📊 Sample Output
+##  Sample Output
 
 ### Week 4 — 3D Mesh Processing
 3D bone meshes reconstructed from patient CT data using Marching Cubes, Laplacian smoothing, and quadric decimation.
