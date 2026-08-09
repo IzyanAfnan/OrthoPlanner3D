@@ -36,8 +36,21 @@ This pipeline automates the measurement of the **Hip-Knee-Ankle (HKA)** angle fr
 ---
 
 ##  Sample Output
+## Environment Setup
 
-### Week 4 — 3D Mesh Processing
+```bash
+conda create -n orthoplanner2 python=3.10 -y
+conda activate orthoplanner2
+pip install torch==2.3.1 torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt
+```
+
+---
+
+## Sample Output
+
+### 3D Mesh Processing
 3D bone meshes reconstructed from patient CT data using Marching Cubes, Laplacian smoothing, and quadric decimation.
 
 | Bone | Raw Faces | Processed Faces | Reduction |
@@ -47,7 +60,7 @@ This pipeline automates the measurement of the **Hip-Knee-Ankle (HKA)** angle fr
 
 ---
 
-### Week 5 — Landmark Detection
+### Landmark Detection
 
 Anatomical landmarks automatically detected from patient_01 
 left limb meshes:
