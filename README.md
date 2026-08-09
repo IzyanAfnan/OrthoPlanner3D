@@ -35,7 +35,7 @@ This pipeline automates the measurement of the **Hip-Knee-Ankle (HKA)** angle fr
 
 ---
 
-## 📊 Sample Output
+##  Sample Output
 
 ### Week 4 — 3D Mesh Processing
 3D bone meshes reconstructed from patient CT data using Marching Cubes, Laplacian smoothing, and quadric decimation.
@@ -43,7 +43,7 @@ This pipeline automates the measurement of the **Hip-Knee-Ankle (HKA)** angle fr
 | Bone | Raw Faces | Processed Faces | Reduction |
 |------|-----------|-----------------|-----------|
 | **Femur (left)** | 113,848 | 22,768 | ~80% |
-| **Tibia (left)** | 78,848  | 615768 | ~80% |
+| **Tibia (left)** | 78,848  | 15,768 | ~80% |
 
 ---
 

@@ -1,3 +1,7 @@
 data/
 meshes/
+assets/
 .ipynb_checkpoints/
+workbook.ipynb
+__pycache__/
+*.pyc
