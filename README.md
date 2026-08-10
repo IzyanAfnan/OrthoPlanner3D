@@ -35,7 +35,43 @@ This pipeline automates the measurement of the **Hip-Knee-Ankle (HKA)** angle fr
 
 ---
 
-##  Sample Output
+## Project Structure
+
+```text
+OrthoPlanner3D/
+│
+├── data/
+│   ├── raw/                  ← NIfTI CT files
+│   └── segmentations/        ← TotalSegmentator outputs
+│
+├── meshes/
+│   └── patient_01/           
+│       ├── femur_left_raw.stl
+│       ├── femur_left_processed.stl
+│       ├── tibia_left_raw.stl
+│       └── tibia_left_processed.stl
+│
+├── results/
+│   └── patient_01/
+│       └── kinematic_results.json 
+│
+├── src/
+│   ├── series_merger.py
+│   ├── mesh_generation.py
+│   ├── bone_splitter.py     
+│   ├── mesh_processor.py
+│   ├── landmark_detector.py
+│   ├── vector_alignment_solver.py
+│   └── verify_segmentation.py
+│
+├── run_pipeline.py           
+├── app.py                    ← Streamlit dashboard
+├── requirements.txt
+└── README.md
+```
+
+---
+
 ## Environment Setup
 
 ```bash
@@ -47,6 +83,46 @@ pip install -r requirements.txt
 ```
 
 ---
+
+## Pipeline Execution
+
+**Step 1 — Convert DICOM to NIfTI** (terminal):
+```bash
+dcm2niix -o ./data/raw/ -f "patient_02_torso" -z y <path_to_torso_dicom/>
+dcm2niix -o ./data/raw/ -f "patient_02_lower" -z y <path_to_lower_dicom/>
+```
+
+**Step 2 — Merge series**:
+```python
+from src.series_merger import merge_ct_series
+merge_ct_series("./data/raw/patient_02_torso.nii.gz",
+                "./data/raw/patient_02_lower.nii.gz",
+                "./data/raw/patient_02_merged.nii.gz")
+```
+
+**Step 3 — Run TotalSegmentator** (terminal):
+```bash
+TotalSegmentator -i data/raw/patient_02_merged.nii.gz \
+    -o data/segmentations/patient_02_total.nii.gz \
+    --ml --fast --nr_thr_resamp 1 --nr_thr_saving 1
+
+TotalSegmentator -i data/raw/patient_02_merged.nii.gz \
+    -o data/segmentations/patient_02_appendicular.nii.gz \
+    --ml --task appendicular_bones \
+    --nr_thr_resamp 1 --nr_thr_saving 1
+```
+
+**Step 4 — Run the pipeline** (terminal):
+```bash
+python run_pipeline.py --patient patient_02 \
+                       --femur_label 75 \
+                       --tibia_label 2
+```
+
+**Step 5 — Launch the dashboard** (terminal):
+```bash
+streamlit run app.py
+```
 
 ## Sample Output
 
