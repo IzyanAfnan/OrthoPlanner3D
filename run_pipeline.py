@@ -37,7 +37,7 @@ import pyvista as pv
 from pathlib import Path
 
 from src.mesh_generation  import extract_bone_mesh
-from src.bone_splitter    import split_tibia
+from src.bone_splitter    import split_tibia, verify_tibia_split
 from src.mesh_processor   import process_mesh
 from src.landmark_detector import detect_all_landmarks
 from src.vector_alignment_solver import run_full_analysis
@@ -100,6 +100,9 @@ def run_pipeline(patient_id: str,
         femur_mesh=femur_proc,
         save_dir=mesh_dir
     )
+
+    if not verify_tibia_split(tibia_left_raw, tibia_right_raw,  femur_mesh=femur_proc):
+        raise RuntimeError(f"Tibia split verification failed for    {patient_id}")
 
     tibia_proc = process_mesh(
         tibia_left_raw,
