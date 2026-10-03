@@ -1,4 +1,4 @@
-# src/mesh_generation.py
+# src/mesh_processor.py
 # Applies Laplacian smoothing and quadratic decimation to raw bone meshes
 
 import pyvista as pv
@@ -12,7 +12,7 @@ def process_mesh(raw_mesh: pv.PolyData,
                   decimate_reduction: float = 0.8 ) -> pv.PolyData:
 
     """
-    Smooths and decimates a raw bone mesh for landmark detection and real time rendering.
+    Cleans floating fragments, Smooths and decimates a raw bone mesh for landmark detection and real time rendering.
 
     Smoothing first removes staircase voxel artifacts.
     Decimation then reduces face count for rendering performance.
@@ -31,18 +31,24 @@ def process_mesh(raw_mesh: pv.PolyData,
 
     original_faces= raw_mesh.n_faces
 
-    smoothed= raw_mesh.smooth(n_iter= smooth_iter,
+    # 1. Strip all disconnected noise fragments
+    connected = raw_mesh.connectivity(largest=True)
+
+    # 2. Laplacian Smoothing
+    smoothed= connected.smooth(n_iter= smooth_iter,
                               relaxation_factor= smooth_factor,
     )
 
+    # 3. Decimation
     decimated= smoothed.decimate(target_reduction= decimate_reduction)
 
     final_mesh = decimated.compute_normals(auto_orient_normals=True)
 
-    kept_pct= 100 * final_faces / original_faces \
-              if (final_faces := final_mesh.n_faces) else 0
-    print(f"Procedded: {original_faces:,} → {final_mesh.n_faces} faces"
-          f"{kept_pct:.0f}% kept")
+    kept_pct = (
+        100 * final_mesh.n_faces / original_faces if original_faces > 0 else 0
+    )
+    print(f"Processed: {original_faces:,} → {final_mesh.n_faces} faces "
+          f"({kept_pct:.0f}% kept)")
 
     Path(save_path).parent.mkdir(parents= True, exist_ok= True)
     final_mesh.save(save_path)
