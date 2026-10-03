@@ -12,14 +12,14 @@ ASSIGNMENT LOGIC (in priority order):
      This is orientation-agnostic and robust to translational drift
      between CT acquisitions (e.g. torso/lower series merges), unlike
      comparing whole-bone centroid X-position.
-  2. FALLBACK — LPS convention (higher X = anatomical left), used only
-     when no femur mesh is supplied. Flagged as unreliable.
+  2. FALLBACK — X-center heuristic, used only when no femur mesh is
+     supplied. Flagged as unreliable. Prefer always passing femur_mesh.
 
 SANITY CHECKS built in:
   - Ambiguous-match warning if the two candidate distances are too close
   - Body-size mismatch warning (possible fibula fragment / bad segmentation)
   - Extra-fragment warning if more than 2 significant bodies are found
-  - Post-split verification: LPS check + joint-gap check + contralateral check
+  - Post-split verification: joint-gap check + contralateral check
 """
 
 from pathlib import Path
@@ -92,6 +92,7 @@ def _min_surface_distance(mesh_a: pv.PolyData, mesh_b: pv.PolyData) -> float:
 def split_tibia(
     tibia_both: pv.PolyData,
     femur_mesh: Optional[pv.PolyData] = None,
+    reference_is_left: bool = True,
     save_dir: str = "./meshes/",
     swap_sides: bool = False,
     save: bool = True,
@@ -102,27 +103,25 @@ def split_tibia(
 
     Args:
         tibia_both : PyVista PolyData containing both tibias combined
-        femur_mesh : Processed femur mesh (same-side reference) — used
-                     to find the anatomically ipsilateral tibia via
-                     joint-surface proximity. Strongly recommended;
-                     falls back to LPS convention (unreliable) if omitted.
+        femur_mesh : Processed femur mesh — used to find the anatomically
+                     ipsilateral tibia via joint-surface proximity.
+        reference_is_left : Which side femur_mesh actually is. Set False
+                     when femur_mesh is the RIGHT femur (label 76), or the
+                     ipsilateral tibia will be labeled "left" when it's
+                     actually the right one.
         save_dir   : Where to save tibia_left_raw.stl + tibia_right_raw.stl
-        swap_sides : Manual override — flips the final left/right
-                     assignment. Use only after visually confirming the
-                     automatic match got it backwards.
+        swap_sides : Manual override — flips the final assignment. Use
+                     only after visually confirming the automatic match
+                     got it backwards.
         save       : Whether to write STL files to disk.
         verbose    : Whether to print diagnostic info.
 
     Returns:
         (tibia_left, tibia_right) as PyVista PolyData objects
-
-    Raises:
-        ValueError: if fewer than 2 valid tibia bodies are found.
     """
     tibia_a, tibia_b = _get_candidate_bodies(tibia_both, verbose=verbose)
     x_a, x_b = tibia_a.center[0], tibia_b.center[0]
 
-    # Size sanity check — the two tibias should be roughly comparable.
     ratio = min(tibia_a.n_points, tibia_b.n_points) / max(tibia_a.n_points, tibia_b.n_points)
     if ratio < SIZE_MISMATCH_RATIO and verbose:
         print(f"  WARNING: candidate bodies differ significantly in size "
@@ -136,32 +135,39 @@ def split_tibia(
         if verbose:
             print(f"\n  Femur↔Body A min surface distance: {dist_a:.1f} mm")
             print(f"  Femur↔Body B min surface distance: {dist_b:.1f} mm")
-            print(f"  (reference X-centers — A={x_a:.1f}, B={x_b:.1f}, femur={femur_mesh.center[0]:.1f})")
 
         if abs(dist_a - dist_b) < AMBIGUOUS_GAP_MARGIN and verbose:
             print(f"  WARNING: distances are close (Δ={abs(dist_a - dist_b):.1f} mm < "
                   f"{AMBIGUOUS_GAP_MARGIN} mm) — match may be ambiguous. "
                   "Visually inspect the split before trusting downstream results.")
 
-        left_is_a = dist_a <= dist_b
+        ipsilateral_is_a = dist_a <= dist_b
         matched_gap = min(dist_a, dist_b)
     else:
         if verbose:
-            print("\n  WARNING: No femur reference provided. Falling back to LPS "
-                  "convention (higher X = anatomical left) — less reliable. "
-                  "Verify visually or re-run with femur_mesh set.")
-        left_is_a = x_a >= x_b
+            print("\n  WARNING: No femur reference provided. Falling back to an "
+                  "X-center heuristic — unreliable. Verify visually.")
+        ipsilateral_is_a = x_a >= x_b
         matched_gap = None
 
     if swap_sides:
-        left_is_a = not left_is_a
+        ipsilateral_is_a = not ipsilateral_is_a
         if verbose:
             print("  swap_sides=True — flipping the assignment above.")
 
-    tibia_left_raw, tibia_right_raw = (tibia_a, tibia_b) if left_is_a else (tibia_b, tibia_a)
+    tibia_ipsilateral, tibia_contralateral = (
+        (tibia_a, tibia_b) if ipsilateral_is_a else (tibia_b, tibia_a)
+    )
+
+    if reference_is_left:
+        tibia_left_raw, tibia_right_raw = tibia_ipsilateral, tibia_contralateral
+    else:
+        tibia_left_raw, tibia_right_raw = tibia_contralateral, tibia_ipsilateral
 
     if verbose:
-        print(f"\n  → {'Body A' if left_is_a else 'Body B'} assigned as LEFT tibia")
+        side_label = "LEFT" if reference_is_left else "RIGHT"
+        print(f"\n  → Ipsilateral body assigned as {side_label} tibia "
+              f"(reference femur was {side_label.lower()})")
         if matched_gap is not None:
             print(f"    (joint-gap distance: {matched_gap:.1f} mm)")
 
@@ -181,19 +187,14 @@ def verify_tibia_split(
     tibia_left: pv.PolyData,
     tibia_right: pv.PolyData,
     femur_mesh: Optional[pv.PolyData] = None,
+    reference_is_left: bool = True,
 ) -> bool:
     """
     Verifies that the tibia split assigned sides correctly.
 
-    Checks:
-      1. LPS sanity      — left X-center > right X-center
-      2. Joint-gap check — left tibia's min surface distance to femur
-                            should be small (a real knee joint)
-      3. Contralateral    — right tibia must be farther from the femur
-                            than left; otherwise sides are likely swapped
-
-    Returns:
-        True if all checks pass, False if the split is likely wrong.
+    Args:
+        reference_is_left : which side femur_mesh actually is (must match
+                             what was passed to split_tibia).
     """
     left_x, right_x = tibia_left.center[0], tibia_right.center[0]
 
@@ -204,26 +205,28 @@ def verify_tibia_split(
     passed = True
 
     if femur_mesh is not None and femur_mesh.n_points > 0:
-        gap_left  = _min_surface_distance(tibia_left, femur_mesh)
-        gap_right = _min_surface_distance(tibia_right, femur_mesh)
+        ipsilateral_tibia, contralateral_tibia = (
+            (tibia_left, tibia_right) if reference_is_left else (tibia_right, tibia_left)
+        )
+        gap_ipsi = _min_surface_distance(ipsilateral_tibia, femur_mesh)
+        gap_contra = _min_surface_distance(contralateral_tibia, femur_mesh)
 
-        print(f"\n  Femur↔Left  tibia gap: {gap_left:.1f} mm")
-        print(f"  Femur↔Right tibia gap: {gap_right:.1f} mm")
+        print(f"\n  Femur↔Ipsilateral tibia gap:   {gap_ipsi:.1f} mm")
+        print(f"  Femur↔Contralateral tibia gap: {gap_contra:.1f} mm")
 
-        if gap_left < JOINT_GAP_OK_MM:
-            print("  ✓ Joint-gap check passed (left gap < 30mm)")
-        elif gap_left < JOINT_GAP_WARN_MM:
-            print("  ⚠ Left gap is 30-60mm — borderline, verify visually")
+        if gap_ipsi < JOINT_GAP_OK_MM:
+            print("  ✓ Joint-gap check passed (ipsilateral gap < 30mm)")
+        elif gap_ipsi < JOINT_GAP_WARN_MM:
+            print("  ⚠ Ipsilateral gap is 30-60mm — borderline, verify visually")
         else:
-            print("  ✗ Joint-gap check FAILED (left gap > 60mm) — sides likely swapped")
+            print("  ✗ Joint-gap check FAILED (ipsilateral gap > 60mm) — sides likely swapped")
             passed = False
 
-        if gap_right <= gap_left:
-            print("  ✗ Contralateral check FAILED — right tibia isn't farther "
-                  "from the femur than left. Sides are very likely swapped.")
+        if gap_contra <= gap_ipsi:
+            print("  ✗ Contralateral check FAILED — sides are very likely swapped.")
             passed = False
         else:
-            print("  ✓ Contralateral check passed (right gap > left gap)")
+            print("  ✓ Contralateral check passed")
 
     if passed:
         print("\n  ✓ Verification PASSED — split looks correct")
