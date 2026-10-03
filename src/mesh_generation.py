@@ -47,6 +47,12 @@ def extract_bone_mesh(
         spacing= voxel_spacing
     )
 
+    # Map voxel-index vertices through the FULL 4x4 affine to get true
+    # world/scanner-space coordinates (handles rotation, translation, and
+    # any axis-direction flips correctly).
+    homogeneous = np.hstack([vertices, np.ones((vertices.shape[0], 1))])
+    vertices = (affine @ homogeneous.T).T[:, :3]
+ 
     faces_pv= np.hstack([
         np.full((len(faces), 1), 3, dtype= int), faces
     ])
